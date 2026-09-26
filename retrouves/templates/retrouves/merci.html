@@ -1,0 +1,16 @@
+{% extends "retrouves/base.html" %}
+{% block titre %}Document enregistré{% endblock %}
+
+{% block contenu %}
+<h1 class="mb-3">Document enregistré</h1>
+<p>Merci. Déposez maintenant le document au poste suivant, en donnant ce code de référence :</p>
+
+<p class="fs-3 fw-bold">{{ doc.code_reference }}</p>
+
+<p>
+  <strong>{{ doc.poste.nom }}</strong><br>
+  {{ doc.poste.adresse }}, {{ doc.poste.ville }}
+</p>
+
+<a href="{% url 'accueil' %}" class="btn btn-primary">Retour à l'accueil</a>
+{% endblock %}

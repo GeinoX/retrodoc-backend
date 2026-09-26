@@ -1,3 +1,4 @@
+import secrets
 from django.db import models
 from django.conf import settings
 # Create your models here.
@@ -37,6 +38,16 @@ class Document(models.Model):
     agent_recuperation = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL
     )
+    code_reference = models.CharField(max_length=12, unique=True, editable=False)
+
+    def save(self, *args, **kwargs):
+        if not self.code_reference:
+            while True:
+                code = "DOC-" + secrets.token_hex(3).upper()
+                if not Document.objects.filter(code_reference=code).exists():
+                    self.code_reference = code
+                    break
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.type} - {self.nom_proprietaire}"
