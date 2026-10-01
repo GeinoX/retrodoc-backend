@@ -12,11 +12,14 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
+
 
 
 # Quick-start development settings - unsuitable for production
@@ -44,6 +47,8 @@ INSTALLED_APPS = [
     "corsheaders",
     "api",
     "apps.accounts",
+    "django_celery_results",
+    "notifications",
 ]
 
 MIDDLEWARE = [

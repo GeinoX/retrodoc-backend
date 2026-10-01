@@ -8,8 +8,6 @@ from .forms import (
 )
 
 
-# Register your models here.
-
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
 
@@ -23,6 +21,7 @@ class CustomUserAdmin(UserAdmin):
         "last_name",
         "phone",
         "role",
+        "email_verified",
         "is_active",
         "is_staff",
         "date_joined",
@@ -30,6 +29,7 @@ class CustomUserAdmin(UserAdmin):
 
     list_filter = (
         "role",
+        "email_verified",
         "is_active",
         "is_staff",
         "must_change_password",
@@ -68,6 +68,7 @@ class CustomUserAdmin(UserAdmin):
             {
                 "fields": (
                     "role",
+                    "email_verified",
                     "is_active",
                     "is_staff",
                     "is_superuser",
@@ -117,6 +118,7 @@ class CustomUserAdmin(UserAdmin):
             {
                 "classes": ("wide",),
                 "fields": (
+                    "email_verified",
                     "is_active",
                     "is_staff",
                     "must_change_password",
