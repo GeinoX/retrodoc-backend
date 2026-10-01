@@ -17,6 +17,7 @@ class CustomUserManager(BaseUserManager):
         phone: str,
         password: str,
         role: str,
+        email_verified: bool,
         **extra_fields,
     ) -> "CustomUser":
         
@@ -31,6 +32,7 @@ class CustomUserManager(BaseUserManager):
             email=self.normalize_email(email) if email else None,
             role=role,
             phone=phone,
+            email_verified=email_verified,
             **extra_fields,
         )  
         user.set_password(password)
@@ -55,6 +57,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(_("Personal Email"), max_length=254, unique=True)
     phone = models.CharField(_("Phone"), max_length=20)
     role = models.CharField(_("Role"), max_length=1, choices=RoleChoices, default=RoleChoices.CITIZEN)
+    email_verified = models.BooleanField(_("Email Verified"), default=False)
  
     must_change_password = models.BooleanField(default=False)
     is_active = models.BooleanField(_("Active"), default=True)
