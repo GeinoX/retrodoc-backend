@@ -24,7 +24,7 @@ class VerificationService:
     def build_verification_url(cls, token):
         path = reverse("verify-email")
 
-        return f"http://127.0.0.1:8000/api/v1{path}?token={token}"
+        return f"http://127.0.0.1:8000{path}?token={token}"
 
     @classmethod
     def verify_token(cls, token):

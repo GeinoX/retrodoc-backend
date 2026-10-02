@@ -6,9 +6,12 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = True
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.16.125:3000"
 ]
+
+MIDDLEWARE.insert(0, "corsheaders.middleware.CorsMiddleware")
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 
@@ -32,3 +35,5 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
+
+CORS_ALLOW_CREDENTIALS = True
