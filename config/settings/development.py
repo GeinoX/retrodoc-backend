@@ -1,39 +1,106 @@
+"""Development settings for the RetroDoc backend."""
+
 from .base import *  # noqa: F401,F403
 
-load_dotenv(BASE_DIR / ".env.example")
-SECRET_KEY = os.getenv("SECRET_KEY")
+
+# ---------------------------------------------------------------------------
+# Core
+# ---------------------------------------------------------------------------
 
 DEBUG = True
+
+
+# ---------------------------------------------------------------------------
+# Hosts
+# ---------------------------------------------------------------------------
+
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "192.168.16.125",
+]
+
+
+# ---------------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------------
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://192.168.16.125:3000"
+    "http://192.168.16.125:3000",
 ]
 
-MIDDLEWARE.insert(0, "corsheaders.middleware.CorsMiddleware")
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# ---------------------------------------------------------------------------
+# Email
+# ---------------------------------------------------------------------------
 
-EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+EMAIL_HOST = "smtp.gmail.com"
+
 EMAIL_PORT = 587
+
 EMAIL_USE_TLS = True
+
 EMAIL_USE_SSL = False
 
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey') 
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+EMAIL_HOST_USER = os.environ.get(
+    "EMAIL_HOST_USER",
+    "",
+)
 
-DEFAULT_FROM_EMAIL = 'Web Store <noreply@yourverifieddomain.com>'
-SERVER_EMAIL = 'errors@yourverifieddomain.com'
+EMAIL_HOST_PASSWORD = os.environ.get(
+    "EMAIL_HOST_PASSWORD",
+    "",
+)
 
-EMAIL_SUBJECT_PREFIX = '[My App] '
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL",
+    "RetroDoc <no-reply@retrodoc.local>",
+)
+
+SERVER_EMAIL = os.environ.get(
+    "SERVER_EMAIL",
+    DEFAULT_FROM_EMAIL,
+)
+
+EMAIL_SUBJECT_PREFIX = "[RetroDoc]"
+
 EMAIL_TIMEOUT = 10
 
-CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
-CELERY_RESULT_BACKEND = 'django-db'
-CELERY_ACCEPT_CONTENT = ["json"]
+
+# ---------------------------------------------------------------------------
+# Redis / Celery
+# ---------------------------------------------------------------------------
+
+REDIS_URL = os.environ.get(
+    "REDIS_URL",
+    "redis://localhost:6379/0",
+)
+
+CELERY_BROKER_URL = REDIS_URL
+
+CELERY_RESULT_BACKEND = "django-db"
+
+CELERY_ACCEPT_CONTENT = [
+    "json",
+]
+
 CELERY_TASK_SERIALIZER = "json"
+
 CELERY_RESULT_SERIALIZER = "json"
+
 CELERY_TIMEZONE = "UTC"
 
-CORS_ALLOW_CREDENTIALS = True
+
+# ---------------------------------------------------------------------------
+# Development security
+# ---------------------------------------------------------------------------
+
+SECURE_SSL_REDIRECT = False
+
+SESSION_COOKIE_SECURE = False
+
+CSRF_COOKIE_SECURE = False
