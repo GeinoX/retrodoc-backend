@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     "notifications",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
+    "documents",
+    "stations"
 ]
 
 MIDDLEWARE = [
