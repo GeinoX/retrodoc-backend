@@ -6,7 +6,10 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
 
         DOCKER_IMAGE = 'les190/retrodoc-backend'
+
         DJANGO_SETTINGS_MODULE = 'config.settings.production'
+
+        DEVOPS_JOB = 'RetroDoc/retrodoc-devops/main'
     }
 
     stages {
@@ -33,7 +36,10 @@ pipeline {
         stage('Install dependencies') {
             steps {
                 sh '''
+                    set -eu
+
                     python3 -m venv .venv
+
                     . .venv/bin/activate
 
                     pip install --upgrade pip
@@ -45,6 +51,8 @@ pipeline {
         stage('Prepare environment') {
             steps {
                 sh '''
+                    set -eu
+
                     cp "$DJANGO_ENV_FILE" .env
                     chmod 600 .env
                 '''
@@ -54,6 +62,8 @@ pipeline {
         stage('Django checks') {
             steps {
                 sh '''
+                    set -eu
+
                     . .venv/bin/activate
 
                     python manage.py check
@@ -64,6 +74,8 @@ pipeline {
         stage('Tests') {
             steps {
                 sh '''
+                    set -eu
+
                     . .venv/bin/activate
 
                     python manage.py test
@@ -72,8 +84,14 @@ pipeline {
         }
 
         stage('Docker Build') {
+            when {
+                branch 'main'
+            }
+
             steps {
                 sh '''
+                    set -eu
+
                     docker build \
                         -t "$DOCKER_IMAGE:$IMAGE_TAG" \
                         -t "$DOCKER_IMAGE:latest" \
@@ -83,8 +101,14 @@ pipeline {
         }
 
         stage('Docker Push') {
+            when {
+                branch 'main'
+            }
+
             steps {
                 sh '''
+                    set -eu
+
                     echo "$DOCKERHUB_CREDENTIALS_PSW" | \
                         docker login \
                         -u "$DOCKERHUB_CREDENTIALS_USR" \
@@ -97,18 +121,44 @@ pipeline {
                 '''
             }
         }
+
+        stage('Trigger Production Deployment') {
+            when {
+                branch 'main'
+            }
+
+            steps {
+                script {
+                    build(
+                        job: env.DEVOPS_JOB,
+                        wait: true,
+                        parameters: [
+                            string(
+                                name: 'BACKEND_VERSION',
+                                value: env.IMAGE_TAG
+                            ),
+                            string(
+                                name: 'FRONTEND_VERSION',
+                                value: 'latest'
+                            )
+                        ]
+                    )
+                }
+            }
+        }
     }
 
     post {
         always {
             sh '''
                 rm -f .env
+                rm -rf .venv
             '''
         }
 
         success {
-            echo "Backend CI/CD image build passed."
-            echo "Image: $DOCKER_IMAGE:$IMAGE_TAG"
+            echo "Backend CI/CD completed successfully."
+            echo "Backend image: $DOCKER_IMAGE:$IMAGE_TAG"
         }
 
         failure {
