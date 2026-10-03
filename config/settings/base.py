@@ -70,6 +70,12 @@ INSTALLED_APPS = [
     "notifications",
     "documents",
     "stations",
+    "found_reports",
+    "lost_reports",
+    "matching",
+    "administration",
+    "audit",
+    "handovers",
 ]
 
 

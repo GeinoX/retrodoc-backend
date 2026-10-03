@@ -1,12 +1,15 @@
+from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
-from django.conf import settings
 
 
 class EmailService:
 
     @staticmethod
-    def send_verification_email(user, verification_url):
+    def send_verification_email(
+        user,
+        verification_url,
+    ):
         subject = "Verify your Retrodoc account"
 
         context = {
@@ -16,7 +19,7 @@ class EmailService:
 
         html_content = render_to_string(
             "emails/verify_email.html",
-            context
+            context,
         )
 
         email = EmailMultiAlternatives(
@@ -26,5 +29,9 @@ class EmailService:
             to=[user.email],
         )
 
-        email.attach_alternative(html_content, "text/html")
+        email.attach_alternative(
+            html_content,
+            "text/html",
+        )
+
         email.send()

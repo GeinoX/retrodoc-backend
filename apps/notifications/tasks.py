@@ -5,8 +5,13 @@ from apps.notifications.services.email_service import EmailService
 
 
 @shared_task
-def send_verification_email(user_id, verification_url):
-    user = CustomUser.objects.get(id=user_id)
+def send_verification_email(
+    user_id,
+    verification_url,
+):
+    user = CustomUser.objects.get(
+        id=user_id
+    )
 
     EmailService.send_verification_email(
         user=user,
