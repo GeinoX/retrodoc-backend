@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         DJANGO_ENV_FILE = credentials('retrodoc-backend-env')
+        DJANGO_SETTINGS_MODULE = 'config.settings.production'
     }
 
     stages {
@@ -24,13 +25,18 @@ pipeline {
             }
         }
 
+        stage('Prepare environment') {
+            steps {
+                sh '''
+                    cp "$DJANGO_ENV_FILE" .env
+                    chmod 600 .env
+                '''
+            }
+        }
+
         stage('Django checks') {
             steps {
                 sh '''
-                    set -a
-                    . "$DJANGO_ENV_FILE"
-                    set +a
-
                     . .venv/bin/activate
 
                     python manage.py check
@@ -41,10 +47,6 @@ pipeline {
         stage('Tests') {
             steps {
                 sh '''
-                    set -a
-                    . "$DJANGO_ENV_FILE"
-                    set +a
-
                     . .venv/bin/activate
 
                     python manage.py test
@@ -54,6 +56,12 @@ pipeline {
     }
 
     post {
+        always {
+            sh '''
+                rm -f .env
+            '''
+        }
+
         success {
             echo 'Backend CI passed.'
         }
