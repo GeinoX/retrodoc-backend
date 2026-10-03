@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        DJANGO_SECRET_KEY = credentials('django-secret-key')
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -13,6 +17,7 @@ pipeline {
                 sh '''
                     python3 -m venv .venv
                     . .venv/bin/activate
+
                     pip install --upgrade pip
                     pip install -r requirements.txt
                 '''
@@ -23,6 +28,9 @@ pipeline {
             steps {
                 sh '''
                     . .venv/bin/activate
+
+                    export SECRET_KEY="$DJANGO_SECRET_KEY"
+
                     python manage.py check
                 '''
             }
@@ -32,6 +40,9 @@ pipeline {
             steps {
                 sh '''
                     . .venv/bin/activate
+
+                    export SECRET_KEY="$DJANGO_SECRET_KEY"
+
                     python manage.py test
                 '''
             }
@@ -42,6 +53,7 @@ pipeline {
         success {
             echo 'Backend CI passed.'
         }
+
         failure {
             echo 'Backend CI failed.'
         }

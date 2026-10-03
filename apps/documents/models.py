@@ -1,6 +1,5 @@
 from django.db import models
 
-# Create your models here.
 
 class DocumentCategory(models.Model):
     code = models.SlugField(max_length=50, unique=True)
