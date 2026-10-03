@@ -1,15 +1,16 @@
 pipeline {
     agent any
 
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
     environment {
-        DJANGO_ENV_FILE = credentials('retrodoc-backend-env')
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
-
         DOCKER_IMAGE = 'les190/retrodoc-backend'
-
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
+        DJANGO_ENV_FILE = credentials('retrodoc-backend-env')
         DJANGO_SETTINGS_MODULE = 'config.settings.production'
-
-        DEVOPS_JOB = 'RetroDoc/retrodoc-devops/main'
     }
 
     stages {
@@ -20,7 +21,7 @@ pipeline {
             }
         }
 
-        stage('Set Build Variables') {
+        stage('Set Version') {
             steps {
                 script {
                     env.IMAGE_TAG = sh(
@@ -28,44 +29,35 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    echo "Backend image tag: ${env.IMAGE_TAG}"
+                    echo "Backend version: ${env.IMAGE_TAG}"
                 }
             }
         }
 
-        stage('Install dependencies') {
+        stage('Install Dependencies') {
             steps {
                 sh '''
-                    set -eu
-
                     python3 -m venv .venv
-
                     . .venv/bin/activate
-
                     pip install --upgrade pip
                     pip install -r requirements.txt
                 '''
             }
         }
 
-        stage('Prepare environment') {
+        stage('Prepare Environment') {
             steps {
                 sh '''
-                    set -eu
-
                     cp "$DJANGO_ENV_FILE" .env
                     chmod 600 .env
                 '''
             }
         }
 
-        stage('Django checks') {
+        stage('Django Checks') {
             steps {
                 sh '''
-                    set -eu
-
                     . .venv/bin/activate
-
                     python manage.py check
                 '''
             }
@@ -74,45 +66,27 @@ pipeline {
         stage('Tests') {
             steps {
                 sh '''
-                    set -eu
-
                     . .venv/bin/activate
-
                     python manage.py test
                 '''
             }
         }
 
-        stage('Docker Build') {
+        stage('Docker Build & Push') {
             when {
                 branch 'main'
             }
 
             steps {
                 sh '''
-                    set -eu
+                    echo "$DOCKERHUB_CREDENTIALS_PSW" | docker login \
+                        -u "$DOCKERHUB_CREDENTIALS_USR" \
+                        --password-stdin
 
                     docker build \
                         -t "$DOCKER_IMAGE:$IMAGE_TAG" \
                         -t "$DOCKER_IMAGE:latest" \
                         .
-                '''
-            }
-        }
-
-        stage('Docker Push') {
-            when {
-                branch 'main'
-            }
-
-            steps {
-                sh '''
-                    set -eu
-
-                    echo "$DOCKERHUB_CREDENTIALS_PSW" | \
-                        docker login \
-                        -u "$DOCKERHUB_CREDENTIALS_USR" \
-                        --password-stdin
 
                     docker push "$DOCKER_IMAGE:$IMAGE_TAG"
                     docker push "$DOCKER_IMAGE:latest"
@@ -128,41 +102,34 @@ pipeline {
             }
 
             steps {
-                script {
-                    build(
-                        job: env.DEVOPS_JOB,
-                        wait: true,
-                        parameters: [
-                            string(
-                                name: 'BACKEND_VERSION',
-                                value: env.IMAGE_TAG
-                            ),
-                            string(
-                                name: 'FRONTEND_VERSION',
-                                value: 'latest'
-                            )
-                        ]
-                    )
-                }
+                build job: 'RetroDoc/retrodoc-devops/main',
+                    wait: false,
+                    parameters: [
+                        string(
+                            name: 'BACKEND_VERSION',
+                            value: "${env.IMAGE_TAG}"
+                        ),
+                        string(
+                            name: 'FRONTEND_VERSION',
+                            value: ''
+                        )
+                    ]
             }
         }
     }
 
     post {
         always {
-            sh '''
-                rm -f .env
-                rm -rf .venv
-            '''
+            sh 'rm -f .env || true'
+            sh 'rm -rf .venv || true'
         }
 
         success {
-            echo "Backend CI/CD completed successfully."
-            echo "Backend image: $DOCKER_IMAGE:$IMAGE_TAG"
+            echo "Backend CI completed successfully."
         }
 
         failure {
-            echo 'Backend CI/CD failed.'
+            echo "Backend CI failed."
         }
     }
 }
