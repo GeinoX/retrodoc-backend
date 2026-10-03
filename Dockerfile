@@ -1,52 +1,28 @@
-# ============================================================
-# RetroDoc Django Backend
-# ============================================================
-
 FROM python:3.14-slim
 
-# Prevent Python from creating .pyc files
 ENV PYTHONDONTWRITEBYTECODE=1
-
-# Ensure Python output appears immediately in Docker logs
 ENV PYTHONUNBUFFERED=1
-
-# Production Django settings
 ENV DJANGO_SETTINGS_MODULE=config.settings.production
 
-# Application directory
 WORKDIR /app
 
-
-# ============================================================
-# System dependencies
-# ============================================================
-
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-    libpq5 \
+    && apt-get install -y --no-install-recommends libpq5 \
     && rm -rf /var/lib/apt/lists/*
-
-
-# ============================================================
-# Python dependencies
-# ============================================================
 
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-
-# ============================================================
-# Application source
-# ============================================================
-
 COPY . .
 
+RUN groupadd --system app \
+    && useradd --system --gid app --create-home app \
+    && mkdir -p /app/staticfiles \
+    && chown -R app:app /app
 
-# ============================================================
-# Gunicorn
-# ============================================================
+USER app
 
 EXPOSE 8000
 
