@@ -1,4 +1,6 @@
 venv/
 db.sqlite3
 __pycache__/
+.envjenkins.env
 .env
+jenkins.env

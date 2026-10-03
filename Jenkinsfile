@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DJANGO_SECRET_KEY = credentials('django-secret-key')
+        DJANGO_ENV_FILE = credentials('retrodoc-backend-env')
     }
 
     stages {
@@ -27,9 +27,11 @@ pipeline {
         stage('Django checks') {
             steps {
                 sh '''
-                    . .venv/bin/activate
+                    set -a
+                    . "$DJANGO_ENV_FILE"
+                    set +a
 
-                    export SECRET_KEY="$DJANGO_SECRET_KEY"
+                    . .venv/bin/activate
 
                     python manage.py check
                 '''
@@ -39,9 +41,11 @@ pipeline {
         stage('Tests') {
             steps {
                 sh '''
-                    . .venv/bin/activate
+                    set -a
+                    . "$DJANGO_ENV_FILE"
+                    set +a
 
-                    export SECRET_KEY="$DJANGO_SECRET_KEY"
+                    . .venv/bin/activate
 
                     python manage.py test
                 '''
