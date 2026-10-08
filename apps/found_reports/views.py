@@ -1,3 +1,5 @@
+### `apps/found_reports/views.py`
+
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -5,6 +7,7 @@ from rest_framework.views import APIView
 
 from apps.administration.permissions import IsOfficerOrAdmin
 from apps.lost_reports.models import LostReport
+from apps.matching.services import find_matches, apply_match
 from apps.matching.matching import reports_match
 from apps.notifications.models import Notification
 from apps.notifications.services.notification_service import notify
@@ -118,55 +121,37 @@ class DropOffConfirmView(APIView):
             reference=report.reference,
         )
 
-        lost_reports = (
-            LostReport.objects
-            .filter(
-                status=LostReport.Status.SEARCHING
-            )
-            .select_related(
-                "owner",
-                "category",
-            )
-        )
+        matches_found = 0
 
-        matched_reports = []
+        for lost_report in LostReport.objects.filter(
+            status=LostReport.Status.SEARCHING
+        ):
+            # Check whether THIS newly deposited document matches
+            # the lost report. Do not rely on matches[0], because
+            # several found documents may match the same lost report.
+            if not reports_match(lost_report, report):
+                continue
 
-        for lost_report in lost_reports:
-            if reports_match(
+            apply_match(
                 lost_report,
                 report,
-            ):
-                matched_reports.append(
-                    lost_report
-                )
-
-        for lost_report in matched_reports:
-            lost_report.matched_found_report = report
-            lost_report.status = (
-                LostReport.Status.POSSIBLE_MATCH
             )
 
-            lost_report.save(
-                update_fields=[
-                    "matched_found_report",
-                    "status",
-                    "updated_at",
-                ]
-            )
+            matches_found += 1
 
             notify(
                 user=lost_report.owner,
                 title="Possible document match",
                 message=(
-                    "A document matching your lost report "
-                    "may have been found. Please review your "
-                    "report and confirm if it is yours."
+                    "We found a document that may match your "
+                    "lost document. Please review the details "
+                    "and confirm if it is yours."
                 ),
                 notification_type=Notification.Type.MATCH,
                 reference=lost_report.reference,
             )
 
-        if matched_reports:
+        if matches_found:
             report.status = (
                 FoundReport.Status.OWNER_MAY_BE_FOUND
             )
@@ -180,13 +165,11 @@ class DropOffConfirmView(APIView):
 
         return Response(
             {
-                "detail": (
-                    "Document drop-off confirmed."
-                ),
-                "status": report.status,
-                "possible_matches": len(
-                    matched_reports
-                ),
+                "detail": "Drop-off confirmed.",
+                "report": FoundReportSerializer(
+                    report
+                ).data,
+                "possible_matches": matches_found,
             },
             status=status.HTTP_200_OK,
         )

@@ -1,21 +1,31 @@
-from django.shortcuts import render
 from rest_framework import generics, serializers
 from rest_framework.permissions import IsAuthenticated
 
 from .models import Region, Station
 
-# Create your views here.
 
 class RegionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Region
-        fields = ["id", "name_en", "name_fr"]
+        fields = [
+            "id",
+            "name_en",
+            "name_fr",
+        ]
 
 
 class StationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Station
-        fields = ["id", "name", "region", "address", "phone", "opening_hours"]
+        fields = [
+            "id",
+            "name",
+            "region",
+            "address",
+            "phone",
+            "opening_hours",
+            "is_active",
+        ]
 
 
 class RegionList(generics.ListAPIView):
@@ -29,6 +39,15 @@ class StationList(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        stations = Station.objects.filter(is_active=True)
+        stations = Station.objects.filter(
+            is_active=True
+        )
+
         region = self.request.query_params.get("region")
-        return stations.filter(region_id=region) if region else stations
+
+        if region:
+            return stations.filter(
+                region_id=region
+            )
+
+        return stations

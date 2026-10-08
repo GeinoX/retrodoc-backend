@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from apps.administration.permissions import IsOfficerOrAdmin
 from apps.found_reports.models import FoundReport
 from apps.handovers.models import HandoverAttempt
-from apps.matching.matching import find_matches
+from apps.matching.services import find_matches, apply_match
 from apps.notifications.models import Notification
 from apps.notifications.services.notification_service import notify
 
@@ -88,28 +88,7 @@ class LostReportCreateView(generics.CreateAPIView):
 
         found_report = matches[0]
 
-        report.matched_found_report = found_report
-        report.status = LostReport.Status.POSSIBLE_MATCH
-
-        report.save(
-            update_fields=[
-                "matched_found_report",
-                "status",
-                "updated_at",
-            ]
-        )
-
-        if found_report.status == FoundReport.Status.AT_STATION:
-            found_report.status = (
-                FoundReport.Status.OWNER_MAY_BE_FOUND
-            )
-
-            found_report.save(
-                update_fields=[
-                    "status",
-                    "updated_at",
-                ]
-            )
+        apply_match(report, found_report)
 
         notify(
             user=self.request.user,
@@ -136,6 +115,7 @@ class MyLostReportsView(generics.ListAPIView):
                 "category",
                 "region",
                 "matched_found_report",
+                "matched_found_report__station",
             )
         )
 
@@ -148,8 +128,8 @@ class ConfirmMatchView(APIView):
             report = (
                 LostReport.objects
                 .select_related(
-                    "owner",
                     "matched_found_report",
+                    "matched_found_report__station",
                 )
                 .get(
                     reference=reference,
@@ -178,17 +158,13 @@ class ConfirmMatchView(APIView):
         if not report.matched_found_report:
             return Response(
                 {
-                    "detail": (
-                        "No matched found report exists."
-                    )
+                    "detail": "No matched document is available."
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         report.collection_code = generate_collection_code()
-        report.status = (
-            LostReport.Status.AWAITING_COLLECTION
-        )
+        report.status = LostReport.Status.AWAITING_COLLECTION
 
         report.save(
             update_fields=[
@@ -200,50 +176,46 @@ class ConfirmMatchView(APIView):
 
         found_report = report.matched_found_report
 
-        if (
-            found_report.status
-            != FoundReport.Status.OWNER_MAY_BE_FOUND
-        ):
-            found_report.status = (
-                FoundReport.Status.OWNER_MAY_BE_FOUND
-            )
+        found_report.status = (
+            FoundReport.Status.OWNER_MAY_BE_FOUND
+        )
 
-            found_report.save(
-                update_fields=[
-                    "status",
-                    "updated_at",
-                ]
-            )
+        found_report.save(
+            update_fields=[
+                "status",
+                "updated_at",
+            ]
+        )
 
         notify(
             user=request.user,
             title="Match confirmed",
             message=(
-                "You confirmed the possible document match. "
-                "Take your collection code and proof of identity "
-                "to the station."
+                "The possible match has been confirmed. "
+                "Please visit the station with your "
+                "collection code and required proof."
             ),
-            notification_type=Notification.Type.ACTION,
+            notification_type=Notification.Type.MATCH,
             reference=report.reference,
         )
 
         notify(
             user=found_report.finder,
-            title="Owner identified",
+            title="Possible owner identified",
             message=(
-                "The owner of the document you found has "
-                "confirmed a possible match. The document "
-                "remains at the station until collection "
-                "is completed."
+                "A possible owner has confirmed a match "
+                "for a document you reported."
             ),
-            notification_type=Notification.Type.STATUS,
-            reference=found_report.reference,
+            notification_type=Notification.Type.MATCH,
+            reference=report.reference,
         )
 
         return Response(
             {
                 "detail": "Match confirmed.",
-                "status": report.status,
+                "report": LostReportSerializer(
+                    report
+                ).data,
                 "collection_code": report.collection_code,
             },
             status=status.HTTP_200_OK,
@@ -271,8 +243,8 @@ class RejectMatchView(APIView):
             return Response(
                 {
                     "detail": (
-                        "This report does not have a "
-                        "pending possible match."
+                        "This report does not currently "
+                        "have a possible match."
                     )
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -294,7 +266,7 @@ class RejectMatchView(APIView):
             title="Match rejected",
             message=(
                 "The possible match was rejected. "
-                "Your lost report remains active."
+                "Your lost document will continue to be searched."
             ),
             notification_type=Notification.Type.STATUS,
             reference=report.reference,
@@ -302,8 +274,10 @@ class RejectMatchView(APIView):
 
         return Response(
             {
-                "detail": "Possible match rejected.",
-                "status": report.status,
+                "detail": "Match rejected.",
+                "report": LostReportSerializer(
+                    report
+                ).data,
             },
             status=status.HTTP_200_OK,
         )
@@ -316,14 +290,6 @@ class OfficerConfirmCollectionView(APIView):
         collection_code = (
             request.data.get("collection_code") or ""
         ).strip().upper()
-
-        proof_shown = (
-            request.data.get("proof_shown") or ""
-        ).strip()
-
-        note = (
-            request.data.get("note") or ""
-        ).strip()
 
         if not collection_code:
             return Response(
@@ -366,8 +332,8 @@ class OfficerConfirmCollectionView(APIView):
             return Response(
                 {
                     "detail": (
-                        "Collection has already been confirmed "
-                        "by an officer."
+                        "Officer collection has already "
+                        "been confirmed."
                     )
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -375,6 +341,14 @@ class OfficerConfirmCollectionView(APIView):
 
         report.collection_officer = request.user
         report.officer_confirmed = True
+
+        report.save(
+            update_fields=[
+                "collection_officer",
+                "officer_confirmed",
+                "updated_at",
+            ]
+        )
 
         attempt_number = (
             report.handover_attempts.count() + 1
@@ -384,71 +358,43 @@ class OfficerConfirmCollectionView(APIView):
             lost_report=report,
             officer=request.user,
             result=HandoverAttempt.Result.RELEASED,
-            proof_shown=proof_shown,
-            note=note,
             attempt_number=attempt_number,
         )
 
         completed = complete_collection(report)
 
-        if not completed:
-            report.save(
-                update_fields=[
-                    "collection_officer",
-                    "officer_confirmed",
-                    "updated_at",
-                ]
-            )
-
         notify(
             user=report.owner,
-            title="Station verification completed",
+            title="Collection confirmed",
             message=(
-                "The station officer has verified your "
-                "collection details."
+                "The station has confirmed the collection "
+                "process for your document."
             ),
             notification_type=Notification.Type.STATUS,
             reference=report.reference,
         )
 
-        if completed:
+        if completed and report.matched_found_report:
             notify(
-                user=report.owner,
+                user=report.matched_found_report.finder,
                 title="Document collected",
                 message=(
-                    "Your document collection has been "
-                    "completed successfully."
+                    "The document you reported has been "
+                    "collected by the confirmed owner."
                 ),
                 notification_type=Notification.Type.STATUS,
                 reference=report.reference,
             )
 
-            if report.matched_found_report:
-                notify(
-                    user=report.matched_found_report.finder,
-                    title="Document returned",
-                    message=(
-                        "The document you found has been "
-                        "successfully returned to its owner."
-                    ),
-                    notification_type=Notification.Type.STATUS,
-                    reference=(
-                        report.matched_found_report.reference
-                    ),
-                )
-
         return Response(
             {
                 "detail": (
-                    "Officer collection confirmation recorded."
+                    "Collection confirmed by officer."
                 ),
-                "status": report.status,
-                "officer_confirmed": (
-                    report.officer_confirmed
-                ),
-                "owner_confirmed": (
-                    report.owner_confirmed
-                ),
+                "completed": completed,
+                "report": LostReportSerializer(
+                    report
+                ).data,
             },
             status=status.HTTP_200_OK,
         )
@@ -459,16 +405,9 @@ class OwnerConfirmCollectionView(APIView):
 
     def post(self, request, reference):
         try:
-            report = (
-                LostReport.objects
-                .select_related(
-                    "owner",
-                    "matched_found_report",
-                )
-                .get(
-                    reference=reference,
-                    owner=request.user,
-                )
+            report = LostReport.objects.get(
+                reference=reference,
+                owner=request.user,
             )
         except LostReport.DoesNotExist:
             return Response(
@@ -492,8 +431,8 @@ class OwnerConfirmCollectionView(APIView):
             return Response(
                 {
                     "detail": (
-                        "Collection has already been confirmed "
-                        "by the owner."
+                        "Owner collection has already "
+                        "been confirmed."
                     )
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -501,67 +440,33 @@ class OwnerConfirmCollectionView(APIView):
 
         report.owner_confirmed = True
 
+        report.save(
+            update_fields=[
+                "owner_confirmed",
+                "updated_at",
+            ]
+        )
+
         completed = complete_collection(report)
 
-        if not completed:
-            report.save(
-                update_fields=[
-                    "owner_confirmed",
-                    "updated_at",
-                ]
-            )
-
-        if completed:
-            notify(
-                user=request.user,
-                title="Document collected",
-                message=(
-                    "Your document collection has been "
-                    "completed successfully."
-                ),
-                notification_type=Notification.Type.STATUS,
-                reference=report.reference,
-            )
-
-            if report.matched_found_report:
-                notify(
-                    user=report.matched_found_report.finder,
-                    title="Document returned",
-                    message=(
-                        "The document you found has been "
-                        "successfully returned to its owner."
-                    ),
-                    notification_type=Notification.Type.STATUS,
-                    reference=(
-                        report.matched_found_report.reference
-                    ),
-                )
-
-        else:
-            notify(
-                user=request.user,
-                title="Collection confirmation recorded",
-                message=(
-                    "Your collection confirmation has been "
-                    "recorded. The station officer still needs "
-                    "to complete their confirmation."
-                ),
-                notification_type=Notification.Type.STATUS,
-                reference=report.reference,
-            )
+        notify(
+            user=request.user,
+            title="Collection confirmed",
+            message=(
+                "Your collection confirmation has been recorded."
+            ),
+            notification_type=Notification.Type.STATUS,
+            reference=report.reference,
+        )
 
         return Response(
             {
-                "detail": (
-                    "Owner collection confirmation recorded."
-                ),
-                "status": report.status,
-                "officer_confirmed": (
-                    report.officer_confirmed
-                ),
-                "owner_confirmed": (
-                    report.owner_confirmed
-                ),
+                "detail": "Collection confirmed by owner.",
+                "completed": completed,
+                "report": LostReportSerializer(
+                    report
+                ).data,
             },
             status=status.HTTP_200_OK,
         )
+

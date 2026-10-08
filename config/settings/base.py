@@ -6,11 +6,18 @@ from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
+import os
+import sys
+from datetime import timedelta
+from pathlib import Path
 
-load_dotenv(override=True)
+from dotenv import load_dotenv
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+# Load environment variables from .env.example
+load_dotenv(BASE_DIR / ".env.example", override=True)
 # Allow Django apps stored inside the top-level `apps/` directory
 sys.path.insert(0, os.path.join(BASE_DIR, "apps"))
 
